@@ -6,7 +6,7 @@ require_once ("config/db.php");
 require_once ("config/session.php");
 
 // Inclut le fichier contenant les fonctions utiles
-require_once ("includes/fonctions.php");
+require_once ("includes/fonction.php");
 
 // Si l'utilisateur est déjà connecté, il est redirigé vers le tableau de bord
 if (estConnecte()) redirect('/tableau_de_bord.php');
@@ -172,10 +172,9 @@ include 'includes/header.php';
             <button type="submit" class="btn-submit">Créer mon compte</button>
         </form>
 
-        <!-- Lien vers la page de connexion -->
-        <div class="auth-footer">
-            Déjà un compte ? <a href="/connexion.php">Se connecter</a>
-        </div>
+       <div class="auth-footer">
+    Déjà un compte ? <a href="connexion.php">Se connecter</a>
+</div>
     </div>
 </div>
 
