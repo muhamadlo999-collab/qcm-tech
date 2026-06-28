@@ -41,15 +41,6 @@ function requireConnexion() {
     }
 }
 
-<<<<<<< HEAD
-function requireAdmin() {
-    requireConnexion();
-    if (!estAdmin()) {
-        header('Location: /tableau_de_bord.php');
-        exit;
-    }
-}
-=======
 // Fonction qui oblige l'utilisateur à être administrateur
 function requireAdmin() {
     // Vérifie d'abord que l'utilisateur est connecté
@@ -65,4 +56,3 @@ function requireAdmin() {
     }
 }
 ```
->>>>>>> 505f221bb8a456b5fb94eb36b9701f469b23609e
