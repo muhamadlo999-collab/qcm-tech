@@ -55,4 +55,4 @@ function requireAdmin() {
         exit;
     }
 }
-```
+
