@@ -1,7 +1,7 @@
-
 <?php
 // Inclut le fichier qui gère les sessions
 require_once __DIR__ . '/../config/session.php';
+require_once __DIR__ . '/fonction.php';
 
 // Récupère le nom du fichier de la page actuelle
 $page_actuelle = basename($_SERVER['PHP_SELF']);
@@ -36,7 +36,7 @@ $page_actuelle = basename($_SERVER['PHP_SELF']);
         <!-- Logo du site, avec lien différent selon la connexion -->
         <a href="<?= estConnecte() ? '/tableau_de_bord.php' : '/index.php' ?>" class="nav-logo">
             <!-- Icône du logo -->
-            <span class="logo-icon">⚡</span>
+            <span class="logo-icon">la place de logo</span>
 
             <!-- Texte du logo -->
             <span class="logo-text">QCM<strong>Tech</strong></span>
@@ -77,7 +77,7 @@ $page_actuelle = basename($_SERVER['PHP_SELF']);
                 <a href="/connexion.php" class="nav-link <?= $page_actuelle === 'connexion.php' ? 'active' : '' ?>">Connexion</a>
 
                 <!-- Lien vers la page d'inscription -->
-                <a href="/inscription.php" class="btn-primary <?= $page_actuelle === 'inscription.php' ? 'active' : '' ?>">S'inscrire</a>
+                <a href="inscription.php" class="btn-primary <?= $page_actuelle === 'inscription.php' ? 'active' : '' ?>">S'inscrire</a>
             </div>
         <?php endif; ?>
     </div>
