@@ -6,18 +6,6 @@ function requireConnexion() {
     }
 }
 
-function estConnecte() {
-    return isset($_SESSION['user_id']);
-}
-
-function estAdmin() {
-    return isset($_SESSION['role']) && $_SESSION['role'] === 'admin';
-}
-
-function nettoyerInput($data) {
-    return htmlspecialchars(trim($data));
-}
-
 function getMention($note) {
     if ($note >= 16) return ['label' => 'Excellent', 'class' => 'excellent'];
     if ($note >= 12) return ['label' => 'Bien', 'class' => 'bien'];

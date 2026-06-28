@@ -1,4 +1,6 @@
+Voici ton code commenté simplement :
 
+```php
 <?php
 // Inclut le fichier de connexion à la base de données
 require_once 'config/db.php';
@@ -189,3 +191,4 @@ include 'includes/header.php';
 // Inclut le pied de page du site
 include 'includes/footer.php';
 ?>
+```
