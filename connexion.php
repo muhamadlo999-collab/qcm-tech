@@ -1,6 +1,3 @@
-Voici ton code commenté simplement :
-
-```php
 <?php
 // Inclut le fichier de connexion à la base de données
 require_once 'config/db.php';
@@ -11,213 +8,160 @@ require_once 'config/session.php';
 // Inclut le fichier contenant les fonctions utiles
 require_once 'includes/fonctions.php';
 
-// Oblige l'utilisateur à être connecté
-requireConnexion();
+// Si l'utilisateur est déjà connecté, il est redirigé vers le tableau de bord
+if (estConnecte()) redirect('/tableau_de_bord.php');
 
-// Récupère l'identifiant de l'utilisateur connecté
-$user_id = $_SESSION['user_id'];
+// Tableau qui contiendra les erreurs du formulaire
+$erreurs = [];
 
-// Récupère toutes les catégories
-$categories = $pdo->query('SELECT * FROM categories ORDER BY id')->fetchAll();
+// Valeurs par défaut des champs du formulaire
+$valeurs = ['nom' => '', 'prenom' => '', 'email' => ''];
 
-// Récupère la catégorie choisie dans l'URL, sinon prend la première catégorie
-$cat_id = isset($_GET['cat']) ? (int)$_GET['cat'] : $categories[0]['id'];
+// Vérifie si le formulaire a été envoyé
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Nettoie le nom envoyé par l'utilisateur
+    $nom = nettoyerInput($_POST['nom'] ?? '');
 
-// Variable qui contiendra la catégorie active
-$cat_active = null;
+    // Nettoie le prénom envoyé par l'utilisateur
+    $prenom = nettoyerInput($_POST['prenom'] ?? '');
 
-// Cherche la catégorie active dans la liste des catégories
-foreach ($categories as $c) {
-    // Si l'identifiant correspond à la catégorie choisie
-    if ($c['id'] === $cat_id) {
-        // Stocke cette catégorie comme catégorie active
-        $cat_active = $c;
+    // Nettoie l'email envoyé par l'utilisateur
+    $email = nettoyerInput($_POST['email'] ?? '');
 
-        // Arrête la boucle
-        break;
+    // Récupère le mot de passe envoyé
+    $mdp = $_POST['mot_de_passe'] ?? '';
+
+    // Récupère la confirmation du mot de passe
+    $mdp_conf = $_POST['mdp_confirmation'] ?? '';
+
+    // Garde les valeurs saisies pour les réafficher dans le formulaire
+    $valeurs = ['nom' => $nom, 'prenom' => $prenom, 'email' => $email];
+
+    // Vérifie que le nom n'est pas vide
+    if (empty($nom)) $erreurs['nom'] = 'Le nom est requis.';
+
+    // Vérifie que le prénom n'est pas vide
+    if (empty($prenom)) $erreurs['prenom'] = 'Le prénom est requis.';
+
+    // Vérifie que l'email est valide
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $erreurs['email'] = 'Email invalide.';
+
+    // Vérifie que le mot de passe contient au moins 6 caractères
+    if (strlen($mdp) < 6) $erreurs['mdp'] = 'Le mot de passe doit faire au moins 6 caractères.';
+
+    // Vérifie que les deux mots de passe sont identiques
+    if ($mdp !== $mdp_conf) $erreurs['mdp_conf'] = 'Les mots de passe ne correspondent pas.';
+
+    // Si aucune erreur n'a été trouvée
+    if (empty($erreurs)) {
+        // Prépare une requête pour vérifier si l'email existe déjà
+        $stmt = $pdo->prepare('SELECT id FROM utilisateurs WHERE email = ?');
+
+        // Exécute la requête avec l'email saisi
+        $stmt->execute([$email]);
+
+        // Si un utilisateur existe déjà avec cet email
+        if ($stmt->fetch()) {
+            // Ajoute une erreur pour l'email
+            $erreurs['email'] = 'Cet email est déjà utilisé.';
+        } else {
+            // Crypte le mot de passe avant de l'enregistrer
+            $hash = password_hash($mdp, PASSWORD_DEFAULT);
+
+            // Prépare la requête pour ajouter un nouvel utilisateur
+            $stmt = $pdo->prepare('INSERT INTO utilisateurs (nom, prenom, email, mot_de_passe) VALUES (?, ?, ?, ?)');
+
+            // Ajoute l'utilisateur dans la base de données
+            $stmt->execute([$nom, $prenom, $email, $hash]);
+
+            // Redirige vers la page de connexion avec un message de succès
+            redirect('/connexion.php?succes=inscription');
+        }
     }
 }
-
-// Si aucune catégorie valide n'a été trouvée
-if (!$cat_active) {
-    // Reprend la première catégorie
-    $cat_id = $categories[0]['id'];
-
-    // Définit la première catégorie comme catégorie active
-    $cat_active = $categories[0];
-}
-
-// Prépare la requête pour récupérer le classement de la catégorie
-$stmt = $pdo->prepare('
-    SELECT cl.*, u.prenom, u.nom,
-           ROW_NUMBER() OVER (ORDER BY cl.meilleure_note DESC, cl.moyenne DESC) AS rang
-    FROM classement cl
-    JOIN utilisateurs u ON cl.utilisateur_id = u.id
-    WHERE cl.categorie_id = ?
-    ORDER BY cl.meilleure_note DESC, cl.moyenne DESC
-    LIMIT 50
-');
-
-// Exécute la requête avec la catégorie choisie
-$stmt->execute([$cat_id]);
-
-// Récupère les lignes du classement
-$classement = $stmt->fetchAll();
-
-// Variable qui contiendra le rang de l'utilisateur connecté
-$mon_rang = null;
-
-// Parcourt le classement pour trouver le rang de l'utilisateur connecté
-foreach ($classement as $row) {
-    // Si la ligne correspond à l'utilisateur connecté
-    if ($row['utilisateur_id'] == $user_id) {
-        // Stocke son rang
-        $mon_rang = $row['rang'];
-
-        // Arrête la boucle
-        break;
-    }
-}
-
-// Associe chaque catégorie à une icône
-$icons = ['html'=>'🌐','css'=>'🎨','php'=>'🐘','sql'=>'🗄️','reseaux'=>'📡','algo'=>'🧮','sys'=>'💻','culture'=>'💡'];
 
 // Définit le titre de la page
-$page_title = 'Classement';
+$page_title = 'Inscription';
 
 // Inclut l'en-tête du site
 include 'includes/header.php';
 ?>
 
-<div class="classement-page">
-    <!-- En-tête de la page classement -->
-    <div class="page-header">
-        <!-- Titre principal -->
-        <h1>🏆 Classement</h1>
+<div class="auth-page">
+    <!-- Bloc principal de la page d'inscription -->
+    <div class="auth-card">
+        <!-- En-tête du formulaire -->
+        <div class="auth-header">
+            <!-- Icône affichée en haut -->
+            <div class="auth-icon">📝</div>
 
-        <!-- Petit texte de présentation -->
-        <p>Les meilleurs joueurs par catégorie</p>
+            <!-- Titre principal -->
+            <h1>Créer un compte</h1>
+
+            <!-- Petit texte de présentation -->
+            <p>Rejoins le quiz et teste tes connaissances tech</p>
+        </div>
+
+        <!-- Formulaire d'inscription -->
+        <form method="POST" class="auth-form" novalidate>
+
+            <!-- Ligne contenant le prénom et le nom -->
+            <div class="form-row">
+                <!-- Groupe du champ prénom, avec classe erreur si besoin -->
+                <div class="form-group <?= isset($erreurs['prenom']) ? 'error' : '' ?>">
+                    <label for="prenom">Prénom</label>
+                    <input type="text" id="prenom" name="prenom" value="<?= $valeurs['prenom'] ?>" placeholder="Ton prénom" autocomplete="given-name">
+
+                    <!-- Affiche l'erreur du prénom si elle existe -->
+                    <?php if (isset($erreurs['prenom'])): ?><span class="form-error"><?= $erreurs['prenom'] ?></span><?php endif; ?>
+                </div>
+
+                <!-- Groupe du champ nom, avec classe erreur si besoin -->
+                <div class="form-group <?= isset($erreurs['nom']) ? 'error' : '' ?>">
+                    <label for="nom">Nom</label>
+                    <input type="text" id="nom" name="nom" value="<?= $valeurs['nom'] ?>" placeholder="Ton nom" autocomplete="family-name">
+
+                    <!-- Affiche l'erreur du nom si elle existe -->
+                    <?php if (isset($erreurs['nom'])): ?><span class="form-error"><?= $erreurs['nom'] ?></span><?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Groupe du champ email, avec classe erreur si besoin -->
+            <div class="form-group <?= isset($erreurs['email']) ? 'error' : '' ?>">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" value="<?= $valeurs['email'] ?>" placeholder="ton@email.com" autocomplete="email">
+
+                <!-- Affiche l'erreur de l'email si elle existe -->
+                <?php if (isset($erreurs['email'])): ?><span class="form-error"><?= $erreurs['email'] ?></span><?php endif; ?>
+            </div>
+
+            <!-- Groupe du champ mot de passe, avec classe erreur si besoin -->
+            <div class="form-group <?= isset($erreurs['mdp']) ? 'error' : '' ?>">
+                <label for="mot_de_passe">Mot de passe</label>
+                <input type="password" id="mot_de_passe" name="mot_de_passe" placeholder="6 caractères minimum" autocomplete="new-password">
+
+                <!-- Affiche l'erreur du mot de passe si elle existe -->
+                <?php if (isset($erreurs['mdp'])): ?><span class="form-error"><?= $erreurs['mdp'] ?></span><?php endif; ?>
+            </div>
+
+            <!-- Groupe du champ confirmation du mot de passe, avec classe erreur si besoin -->
+            <div class="form-group <?= isset($erreurs['mdp_conf']) ? 'error' : '' ?>">
+                <label for="mdp_confirmation">Confirmer le mot de passe</label>
+                <input type="password" id="mdp_confirmation" name="mdp_confirmation" placeholder="Répète le mot de passe" autocomplete="new-password">
+
+                <!-- Affiche l'erreur de confirmation si elle existe -->
+                <?php if (isset($erreurs['mdp_conf'])): ?><span class="form-error"><?= $erreurs['mdp_conf'] ?></span><?php endif; ?>
+            </div>
+
+            <!-- Bouton pour envoyer le formulaire -->
+            <button type="submit" class="btn-submit">Créer mon compte</button>
+        </form>
+
+        <!-- Lien vers la page de connexion -->
+        <div class="auth-footer">
+            Déjà un compte ? <a href="/connexion.php">Se connecter</a>
+        </div>
     </div>
-
-    <!-- Onglets des catégories -->
-    <div class="class-tabs">
-        <!-- Parcourt toutes les catégories -->
-        <?php foreach ($categories as $cat): ?>
-        <a href="/classement.php?cat=<?= $cat['id'] ?>"
-           class="class-tab <?= $cat['id'] == $cat_id ? 'active' : '' ?>">
-            <!-- Affiche l'icône et le nom de la catégorie -->
-            <?= ($icons[$cat['slug']] ?? '📚') . ' ' . htmlspecialchars($cat['nom']) ?>
-        </a>
-        <?php endforeach; ?>
-    </div>
-
-    <!-- Si le classement est vide -->
-    <?php if (empty($classement)): ?>
-        <div class="empty-state">
-            <!-- Message affiché s'il n'y a aucun score -->
-            <p>🎯 Aucun score enregistré pour cette catégorie.</p>
-
-            <!-- Lien pour commencer un QCM -->
-            <a href="/lancer_qcm.php" class="btn-primary">Être le premier !</a>
-        </div>
-    <?php else: ?>
-
-        <!-- Si le classement contient au moins 3 joueurs -->
-        <?php if (count($classement) >= 3): ?>
-        <div class="podium">
-            <!-- Deuxième place du podium -->
-            <div class="podium-place second">
-                <div class="podium-avatar">🥈</div>
-                <div class="podium-name"><?= htmlspecialchars($classement[1]['prenom']) ?></div>
-                <div class="podium-score"><?= $classement[1]['meilleure_note'] ?>/20</div>
-                <div class="podium-block p2">2</div>
-            </div>
-
-            <!-- Première place du podium -->
-            <div class="podium-place first">
-                <div class="podium-crown">👑</div>
-                <div class="podium-avatar">🥇</div>
-                <div class="podium-name"><?= htmlspecialchars($classement[0]['prenom']) ?></div>
-                <div class="podium-score"><?= $classement[0]['meilleure_note'] ?>/20</div>
-                <div class="podium-block p1">1</div>
-            </div>
-
-            <!-- Troisième place du podium -->
-            <div class="podium-place third">
-                <div class="podium-avatar">🥉</div>
-                <div class="podium-name"><?= htmlspecialchars($classement[2]['prenom']) ?></div>
-                <div class="podium-score"><?= $classement[2]['meilleure_note'] ?>/20</div>
-                <div class="podium-block p3">3</div>
-            </div>
-        </div>
-        <?php endif; ?>
-
-        <!-- Si l'utilisateur connecté est dans le classement affiché -->
-        <?php if ($mon_rang): ?>
-        <div class="my-rank-banner">
-            🎯 Ta position dans cette catégorie : <strong>#<?= $mon_rang ?></strong>
-        </div>
-        <?php endif; ?>
-
-        <!-- Tableau du classement -->
-        <div class="class-table-wrap">
-            <table class="class-table">
-                <thead>
-                    <tr>
-                        <!-- Colonne du rang -->
-                        <th>#</th>
-
-                        <!-- Colonne du joueur -->
-                        <th>Joueur</th>
-
-                        <!-- Colonne de la meilleure note -->
-                        <th>Meilleure note</th>
-
-                        <!-- Colonne de la moyenne -->
-                        <th>Moyenne</th>
-
-                        <!-- Colonne du nombre de parties -->
-                        <th>Parties</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Parcourt chaque ligne du classement -->
-                    <?php foreach ($classement as $row): ?>
-                    <tr class="<?= $row['utilisateur_id'] == $user_id ? 'my-row' : '' ?>">
-                        <td>
-                            <?php
-                            // Affiche une médaille pour les 3 premiers
-                            if ($row['rang'] == 1) echo '🥇';
-                            elseif ($row['rang'] == 2) echo '🥈';
-                            elseif ($row['rang'] == 3) echo '🥉';
-                            else echo '#' . $row['rang'];
-                            ?>
-                        </td>
-                        <td>
-                            <!-- Affiche le prénom du joueur -->
-                            <strong><?= htmlspecialchars($row['prenom']) ?></strong>
-
-                            <!-- Si cette ligne correspond à l'utilisateur connecté -->
-                            <?php if ($row['utilisateur_id'] == $user_id): ?>
-                                <!-- Affiche un badge Moi -->
-                                <span class="you-badge">Moi</span>
-                            <?php endif; ?>
-                        </td>
-
-                        <!-- Affiche la meilleure note -->
-                        <td><strong><?= $row['meilleure_note'] ?>/20</strong></td>
-
-                        <!-- Affiche la moyenne -->
-                        <td><?= round($row['moyenne'], 1) ?>/20</td>
-
-                        <!-- Affiche le nombre de tentatives -->
-                        <td><?= $row['nb_tentatives'] ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    <?php endif; ?>
 </div>
 
 <?php
