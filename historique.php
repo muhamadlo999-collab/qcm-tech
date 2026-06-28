@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 
 <?php
 // Inclut le fichier de connexion à la base de données
@@ -189,3 +190,5 @@ include 'includes/header.php';
 // Inclut le pied de page du site
 include 'includes/footer.php';
 ?>
+=======
+>>>>>>> 26e72cc (indext)
