@@ -6,7 +6,7 @@ require_once ("config/db.php");
 require_once ("config/session.php");
 
 // Inclut le fichier contenant les fonctions utiles
-require_once ("includes/fonctions.php");
+require_once ("includes/fonction.php");
 
 // Récupère toutes les catégories depuis la base de données
 $categories = $pdo->query('SELECT * FROM categories ORDER BY id')->fetchAll();
