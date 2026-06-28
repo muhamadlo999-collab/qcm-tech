@@ -1,0 +1,269 @@
+Voici ton code commenté simplement :
+
+```php
+<?php
+// Inclut le fichier de connexion à la base de données
+require_once 'config/db.php';
+
+// Inclut le fichier qui gère les sessions
+require_once 'config/session.php';
+
+// Inclut le fichier contenant les fonctions utiles
+require_once 'includes/fonctions.php';
+
+// Oblige l'utilisateur à être connecté
+requireConnexion();
+
+// Vérifie que le formulaire a été envoyé en POST et qu'une catégorie a été choisie
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['categorie_id'])) {
+    // Redirige vers la page de lancement du QCM
+    redirect('/lancer_qcm.php');
+}
+
+// Récupère l'identifiant de la catégorie choisie
+$categorie_id = (int)$_POST['categorie_id'];
+
+// Récupère les informations de la catégorie
+$cat = getCategorieById($pdo, $categorie_id);
+
+// Si la catégorie n'existe pas, redirige vers la page de lancement
+if (!$cat) redirect('/lancer_qcm.php');
+
+// Prépare une requête pour récupérer des questions au hasard
+$stmt = $pdo->prepare('SELECT * FROM questions WHERE categorie_id = ? ORDER BY RAND() LIMIT ' . (int)$cat['nb_questions_qcm']);
+
+// Exécute la requête avec l'identifiant de la catégorie
+$stmt->execute([$categorie_id]);
+
+// Récupère les questions du QCM
+$questions = $stmt->fetchAll();
+
+// Parcourt les questions pour mélanger les réponses
+foreach ($questions as &$q) {
+    // Crée un tableau avec les 4 réponses possibles
+    $reponses = [$q['reponse1'], $q['reponse2'], $q['reponse3'], $q['reponse4']];
+
+    // Récupère le texte de la bonne réponse
+    $bonne = $reponses[$q['bonne_reponse'] - 1];
+
+    // Mélange l'ordre des réponses
+    shuffle($reponses);
+
+    // Ajoute les réponses mélangées à la question
+    $q['reponses_melangees'] = $reponses;
+
+    // Ajoute la bonne réponse sous forme de texte
+    $q['bonne_reponse_texte'] = $bonne;
+}
+
+// Supprime la référence utilisée dans la boucle
+unset($q);
+
+// Stocke les informations du QCM dans la session
+$_SESSION['qcm'] = [
+    'categorie_id' => $categorie_id,
+    'questions' => $questions,
+    'date_debut' => date('Y-m-d H:i:s'),
+    'invalide' => 0,
+    'duree_minutes' => $cat['duree_minutes'],
+];
+
+// Définit le titre de la page
+$page_title = 'QCM — ' . $cat['nom'];
+
+// Ajoute le CSS spécial du QCM
+$extra_css = '/assets/css/qcm.css';
+
+// Inclut l'en-tête du site
+include 'includes/header.php';
+?>
+
+<div class="qcm-page" id="qcm-app">
+    <!-- Barre supérieure du QCM -->
+    <div class="qcm-topbar">
+        <!-- Affiche le numéro de la question actuelle -->
+        <div class="qcm-progress-info">
+            <span id="q-current">1</span> / <?= count($questions) ?>
+        </div>
+
+        <!-- Affiche le nom de la catégorie -->
+        <div class="qcm-cat-name"><?= htmlspecialchars($cat['nom']) ?></div>
+
+        <!-- Affiche le chronomètre -->
+        <div class="qcm-timer" id="timer">
+            <span class="timer-icon">⏱</span>
+            <span id="timer-display"><?= sprintf('%02d:00', $cat['duree_minutes']) ?></span>
+        </div>
+    </div>
+
+    <!-- Barre de progression du QCM -->
+    <div class="qcm-progress-bar">
+        <div class="qcm-progress-fill" id="progress-fill" style="width: <?= round(1/count($questions)*100) ?>%"></div>
+    </div>
+
+    <!-- Formulaire qui envoie les réponses -->
+    <form method="POST" action="/valider_qcm.php" id="qcm-form">
+        <!-- Champ caché pour indiquer si la tentative est invalide -->
+        <input type="hidden" name="invalide" id="invalide-flag" value="0">
+
+        <!-- Parcourt toutes les questions -->
+        <?php foreach ($questions as $i => $q): ?>
+        <div class="qcm-question <?= $i === 0 ? 'active' : '' ?>" data-index="<?= $i ?>">
+            <!-- En-tête de la question -->
+            <div class="q-header">
+                <span class="q-num">Question <?= $i + 1 ?></span>
+            </div>
+
+            <!-- Texte de la question -->
+            <p class="q-text"><?= htmlspecialchars($q['question']) ?></p>
+
+            <!-- Liste des réponses possibles -->
+            <div class="q-choices">
+                <?php foreach ($q['reponses_melangees'] as $j => $rep): ?>
+                <!-- Choix de réponse -->
+                <label class="choice-label" for="q<?= $i ?>_r<?= $j ?>">
+                    <input type="radio" name="reponse[<?= $i ?>]" id="q<?= $i ?>_r<?= $j ?>"
+                           value="<?= htmlspecialchars($rep) ?>" required>
+                    <span class="choice-letter"><?= chr(65 + $j) ?></span>
+                    <span class="choice-text"><?= htmlspecialchars($rep) ?></span>
+                </label>
+                <?php endforeach; ?>
+            </div>
+
+            <!-- Stocke les réponses mélangées dans des champs cachés -->
+            <?php foreach ($q['reponses_melangees'] as $rep): ?>
+                <input type="hidden" name="reponse_orig[<?= $i ?>][]" value="<?= htmlspecialchars($rep) ?>">
+            <?php endforeach; ?>
+
+            <!-- Stocke l'identifiant de la question -->
+            <input type="hidden" name="question_id[<?= $i ?>]" value="<?= $q['id'] ?>">
+
+            <!-- Stocke la bonne réponse -->
+            <input type="hidden" name="bonne_reponse[<?= $i ?>]" value="<?= htmlspecialchars($q['bonne_reponse_texte']) ?>">
+
+            <!-- Navigation entre les questions -->
+            <div class="q-nav">
+                <!-- Si ce n'est pas la première question, affiche le bouton précédent -->
+                <?php if ($i > 0): ?>
+                    <button type="button" class="btn-prev" onclick="goTo(<?= $i - 1 ?>)">← Précédent</button>
+                <?php else: ?>
+                    <span></span>
+                <?php endif; ?>
+
+                <!-- Si ce n'est pas la dernière question, affiche le bouton suivant -->
+                <?php if ($i < count($questions) - 1): ?>
+                    <button type="button" class="btn-next" onclick="goTo(<?= $i + 1 ?>)" id="next-<?= $i ?>">Suivant →</button>
+                <?php else: ?>
+                    <!-- Sinon, affiche le bouton de validation -->
+                    <button type="submit" class="btn-submit-qcm">✅ Valider mes réponses</button>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </form>
+</div>
+
+<!-- Fenêtre d'alerte anti-triche -->
+<div class="qcm-overlay" id="overlay-anticheat" style="display:none;">
+    <div class="overlay-box">
+        <!-- Icône d'avertissement -->
+        <div class="overlay-icon">⚠️</div>
+
+        <!-- Titre de l'alerte -->
+        <h2 id="overlay-title">Attention !</h2>
+
+        <!-- Message de l'alerte -->
+        <p id="overlay-msg">Tu as quitté le plein écran.</p>
+
+        <!-- Boutons de l'alerte -->
+        <div class="overlay-actions">
+            <button onclick="reprendre()" class="btn-reprendre">Reprendre le QCM</button>
+            <button onclick="abandonner()" class="btn-abandonner">Abandonner</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Stocke le nombre total de questions
+const totalQuestions = <?= count($questions) ?>;
+
+// Stocke la durée du QCM en minutes
+const dureeMinutes = <?= $cat['duree_minutes'] ?>;
+
+// Compte le nombre d'avertissements anti-triche
+let avertissements = 0;
+</script>
+
+<!-- Charge le script du chronomètre -->
+<script src="/assets/js/timer.js"></script>
+
+<!-- Charge le script anti-triche -->
+<script src="/assets/js/antitricherie.js"></script>
+
+<script>
+// Numéro de la question actuellement affichée
+let current = 0;
+
+// Fonction qui permet d'aller à une question précise
+function goTo(index) {
+    // Récupère la question actuellement visible
+    const current_el = document.querySelector('.qcm-question.active');
+
+    // Récupère la réponse sélectionnée
+    const selected = current_el.querySelector('input[type=radio]:checked');
+
+    // Si aucune réponse n'est choisie et qu'on veut avancer
+    if (!selected && index > current) {
+        // Ajoute une animation d'erreur
+        current_el.querySelector('.q-choices').classList.add('shake');
+
+        // Retire l'animation après un court délai
+        setTimeout(() => current_el.querySelector('.q-choices').classList.remove('shake'), 500);
+
+        // Arrête la fonction
+        return;
+    }
+
+    // Cache toutes les questions
+    document.querySelectorAll('.qcm-question').forEach(q => q.classList.remove('active'));
+
+    // Met à jour le numéro de la question affichée
+    document.getElementById('q-current').textContent = index + 1;
+
+    // Met à jour la barre de progression
+    document.getElementById('progress-fill').style.width = ((index + 1) / totalQuestions * 100) + '%';
+
+    // Affiche la question demandée
+    document.querySelector(`.qcm-question[data-index="${index}"]`).classList.add('active');
+
+    // Mémorise la question actuelle
+    current = index;
+
+    // Remonte en haut de la page
+    window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+// Fonction pour reprendre le QCM après une alerte
+function reprendre() {
+    // Cache la fenêtre d'alerte
+    document.getElementById('overlay-anticheat').style.display = 'none';
+
+    // Récupère l'élément principal de la page
+    const el = document.documentElement;
+
+    // Redemande le plein écran si possible
+    if (el.requestFullscreen) el.requestFullscreen();
+}
+
+// Fonction pour abandonner le QCM
+function abandonner() {
+    // Redirige vers le tableau de bord
+    window.location.href = '/tableau_de_bord.php';
+}
+</script>
+
+<?php
+// Inclut le pied de page du site
+include 'includes/footer.php';
+?>
+```
