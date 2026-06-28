@@ -1,6 +1,3 @@
-Voici ton code commenté simplement :
-
-```php
 <?php
 // Inclut le fichier de connexion à la base de données
 require_once ("config/db.php");
